@@ -3,27 +3,6 @@ import TipTapEditor from './components/TipTapEditor'
 
 const STORAGE_KEY = 'travel-guide-content'
 
-const DEFAULT_CONTENT = `
-<h1>京都 · 三日深度游攻略</h1>
-<p>京都是日本最具古韵的城市，千年古刹、四季风物与慢节奏的街巷生活交织在一起。这份攻略适合第一次去京都、想深度体验关西文化的旅行者。</p>
-<h2>行程安排</h2>
-<ul>
-  <li><strong>Day 1</strong>：伏见稻荷大社 → 清水寺 → 三年坂二年坂 → 祇园花见小路</li>
-  <li><strong>Day 2</strong>：金阁寺 → 龙安寺 → 岚山竹林 → 天龙寺</li>
-  <li><strong>Day 3</strong>：二条城 → 京都御所 → 锦市场 → 鸭川</li>
-</ul>
-<h2>美食推荐</h2>
-<blockquote>不要错过锦市场的小吃，以及祇园附近的汤豆腐料理。</blockquote>
-<p>推荐尝一尝<span style="color: #e74c3c">抹茶冰淇淋</span>，岚山的汤豆腐和鸭川旁的怀石料理也值得一试。</p>
-<h2>出行贴士</h2>
-<ol>
-  <li>购买京都巴士一日券，大部分景点都能覆盖。</li>
-  <li>寺社大多下午 17:00 关闭，注意安排时间。</li>
-  <li>春秋季游客最多，建议错峰或提前预订住宿。</li>
-</ol>
-<p>祝旅途愉快！</p>
-`
-
 // 分享页排版样式（自包含，不依赖任何外部资源）
 const SHARE_STYLES = `
   :root { color-scheme: light; }
@@ -67,10 +46,46 @@ const SHARE_STYLES = `
   .guide li { margin: 0.3em 0; }
   .guide a { color: #0284c7; }
   .guide img { max-width: 100%; height: auto; border-radius: 8px; }
+  .guide .guide-images-wall {
+    display: flex; gap: 10px; overflow-x: auto; margin: 1em 0;
+    padding: 8px 2px; scrollbar-width: thin;
+  }
+  .guide .guide-images-wall img {
+    width: 200px; height: 150px; object-fit: cover; flex-shrink: 0;
+  }
   @media (max-width: 600px) {
     .guide { padding: 24px 20px; }
   }
 `
+
+// 把编辑器里的图片节点（data-guide-images）转换为分享页的图片墙
+function transformImagesForShare(content) {
+  const doc = new DOMParser().parseFromString(content, 'text/html')
+  doc.querySelectorAll('[data-guide-images]').forEach((el) => {
+    let images = []
+    try {
+      const arr = JSON.parse(el.getAttribute('data-images') || '[]')
+      if (Array.isArray(arr)) images = arr
+    } catch {
+      /* 忽略解析失败 */
+    }
+    if (!images.length) {
+      el.replaceWith(el.textContent || '')
+      return
+    }
+    const wall = document.createElement('div')
+    wall.className = 'guide-images-wall'
+    images.forEach((src) => {
+      const img = document.createElement('img')
+      img.src = src
+      img.alt = '攻略图片'
+      img.loading = 'lazy'
+      wall.appendChild(img)
+    })
+    el.replaceWith(wall)
+  })
+  return doc.body.innerHTML
+}
 
 // 将编辑内容包装为可直接打开/分享的完整 HTML 文档
 function buildShareHtml(content) {
@@ -83,25 +98,62 @@ function buildShareHtml(content) {
   <style>${SHARE_STYLES}</style>
 </head>
 <body>
-  <main class="guide">${content}</main>
+  <main class="guide">${transformImagesForShare(content)}</main>
 </body>
 </html>`
+}
+
+// 解析本地 HTML 文件，提取可编辑的正文内容
+// 优先取本应用导出的 .guide 容器；其他文件取 <body> 内容
+function parseHtmlContent(htmlText) {
+  const doc = new DOMParser().parseFromString(htmlText, 'text/html')
+  const guide = doc.querySelector('main.guide, .guide')
+  const container = guide || doc.body
+  if (!container) return ''
+  // 清理脚本/样式等不适合进入编辑器的内容
+  container.querySelectorAll('script, style, link, meta, iframe').forEach((el) => el.remove())
+  return container.innerHTML.trim()
 }
 
 function App() {
   const [content, setContent] = useState(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY) || DEFAULT_CONTENT
+      return localStorage.getItem(STORAGE_KEY) || ''
     } catch {
-      return DEFAULT_CONTENT
+      return ''
     }
   })
   const [toast, setToast] = useState('')
+  const [dirty, setDirty] = useState(false) // 是否有未保存的修改
   const timerRef = useRef(null)
+  const editorRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     return () => clearTimeout(timerRef.current)
   }, [])
+
+  // 内容与已保存的版本不一致时，标记为未保存
+  useEffect(() => {
+    let saved = ''
+    try {
+      saved = localStorage.getItem(STORAGE_KEY) || ''
+    } catch {
+      /* 忽略读取失败 */
+    }
+    setDirty(content !== saved)
+  }, [content])
+
+  // 刷新 / 关闭页面 / 退出前，有未保存修改时提示确认
+  useEffect(() => {
+    if (!dirty) return
+    const onBeforeUnload = (e) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [dirty])
 
   const showToast = (msg) => {
     setToast(msg)
@@ -119,17 +171,50 @@ function App() {
   }
 
   // 下载独立的 .html 文件，可分享给他人直接打开
+  // 文件名：第一行内容 + 日期
   const handleDownloadHtml = () => {
+    const doc = new DOMParser().parseFromString(content, 'text/html')
+    const firstLine = doc.body.firstElementChild?.textContent?.trim() || ''
+    const safeName = firstLine.replace(/[\\/:*?"<>|]/g, '').slice(0, 30) || '旅游攻略'
+    const now = new Date()
+    const pad = (n) => String(n).padStart(2, '0')
+    const dateTime =
+      `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
+      `-${pad(now.getHours())}${pad(now.getMinutes())}`
     const blob = new Blob([buildShareHtml(content)], { type: 'text/html;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `travel-guide-${new Date().toISOString().slice(0, 10)}.html`
+    a.download = `${safeName}-${dateTime}.html`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
     showToast('HTML 文件已下载')
+  }
+
+  // 选择本地 HTML 文件并导入到编辑器
+  const handleImportHtml = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // 允许重复选择同一个文件
+    if (!file) return
+    try {
+      const text = await file.text()
+      const parsed = parseHtmlContent(text)
+      if (!parsed) {
+        showToast('文件中没有可导入的内容')
+        return
+      }
+      editorRef.current?.setContent(parsed)
+      setContent(parsed)
+      showToast('HTML 已导入')
+    } catch {
+      showToast('文件读取失败')
+    }
   }
 
   // 在新窗口预览分享效果
@@ -138,13 +223,6 @@ function App() {
     const url = URL.createObjectURL(blob)
     window.open(url, '_blank')
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
-  }
-
-  const handleReset = () => {
-    if (!window.confirm('确定恢复为默认攻略内容吗？当前内容将被覆盖。')) return
-    setContent(DEFAULT_CONTENT)
-    localStorage.removeItem(STORAGE_KEY)
-    showToast('已恢复默认内容')
   }
 
   return (
@@ -157,15 +235,22 @@ function App() {
             <span className="brand-sub">旅游攻略编辑器</span>
           </div>
           <div className="header-actions">
-            <button type="button" className="btn ghost" onClick={handleReset}>
-              重置
-            </button>
             <button type="button" className="btn ghost" onClick={handlePreview}>
               预览
+            </button>
+            <button type="button" className="btn ghost" onClick={handleImportHtml}>
+              导入 HTML
             </button>
             <button type="button" className="btn ghost" onClick={handleDownloadHtml}>
               下载 HTML
             </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".html,.htm,text/html"
+              style={{ display: 'none' }}
+              onChange={handleFileChange}
+            />
             <button type="button" className="btn primary" onClick={handleSave}>
               保存攻略
             </button>
@@ -174,9 +259,9 @@ function App() {
       </header>
 
       <main className="app-main">
-        <TipTapEditor initialContent={content} onChange={setContent} />
+        <TipTapEditor ref={editorRef} initialContent={content} onChange={setContent} onNotify={showToast} />
         <p className="editor-hint">
-          内容自动保存在浏览器本地；「预览 / 下载 HTML」可生成带完整样式的分享文件。
+          编辑内容默认仅保存在本页，退出前请点击「保存攻略」；「导入 HTML」可载入本地攻略文件，「预览 / 下载 HTML」可导出分享。
         </p>
       </main>
 

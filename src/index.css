@@ -100,6 +100,8 @@ body {
   background: var(--primary-dark);
 }
 
+
+
 .btn.ghost {
   background: transparent;
 }
@@ -177,11 +179,15 @@ body {
 }
 
 .tool-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   height: 32px;
-  padding: 0 8px;
+  padding: 0 26px 0 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fff;
+  background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") no-repeat right 8px center;
+  background-size: 12px;
   font-size: 13px;
   color: var(--text);
   cursor: pointer;
@@ -342,6 +348,310 @@ body {
   border: none;
   border-top: 1px solid var(--border);
   margin: 1.5em 0;
+}
+
+/* 图片标记节点（文本绑定图片）：仅用橙色字提示，右键/长按可管理图片 */
+.editor-content .ProseMirror .guide-images {
+  color: #ea580c;
+  cursor: pointer;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* ---------- 图片悬浮窗 ---------- */
+.image-popup {
+  position: fixed;
+  z-index: 350;
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 14px 44px rgba(15, 23, 42, 0.2);
+  overflow: hidden;
+  animation: popup-in 0.18s ease;
+}
+
+/* ---------- 图片上传面板 ---------- */
+.upload-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 360;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.upload-panel {
+  width: 480px;
+  max-width: 100%;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.25);
+  overflow: hidden;
+  animation: popup-in 0.18s ease;
+}
+
+.upload-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.upload-close {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.upload-close:hover {
+  background: #f1f5f9;
+}
+
+.upload-dropzone {
+  margin: 16px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.upload-dropzone:hover {
+  border-color: var(--primary);
+  background: #f0f9ff;
+}
+
+.upload-dropzone.dragging {
+  border-color: var(--primary);
+  background: #e0f2fe;
+}
+
+.upload-icon {
+  display: block;
+  margin: 0 auto 8px;
+  color: var(--primary);
+}
+
+.upload-dropzone p {
+  margin: 4px 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.upload-dropzone .upload-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.image-popup-scroll {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  overflow: auto; /* 横向滚动看多张，纵向滚动看超高长图 */
+  padding: 12px;
+  scrollbar-width: thin;
+}
+
+.image-popup-thumb {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.image-popup-thumb img {
+  width: 100px;
+  height: 76px;
+  object-fit: cover;
+  border-radius: 6px;
+  cursor: pointer;
+  display: block;
+  transition: transform 0.15s ease;
+}
+
+/* 左键预览模式：图片占屏幕宽度 70%（不超过 300px），弹窗左右居中于屏幕 */
+.image-popup.view {
+  width: calc(70vw + 26px);
+  max-width: min(300px + 26px, calc(100vw - 32px));
+  left: 50% !important;
+  transform: translateX(-50%);
+  animation: none;
+}
+
+.image-popup-scroll.view .image-popup-thumb img {
+  width: 70vw;
+  max-width: 300px;
+  height: auto;
+  object-fit: contain;
+}
+
+.image-popup-thumb img:hover {
+  transform: scale(1.06);
+}
+
+.thumb-del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumb-del:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.image-popup-empty {
+  width: 100%;
+  padding: 16px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.image-popup-actions {
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.image-popup-add {
+  width: 100%;
+  padding: 8px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.image-popup-add:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* ---------- 全屏查看 ---------- */
+.fs-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none; /* 手势交给滑动切换，不被浏览器滚动/缩放拦截 */
+}
+
+.fs-overlay img {
+  max-width: 92vw;
+  max-height: 88vh;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  border-radius: 4px;
+}
+
+.fs-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 0;
+}
+
+.fs-btn svg {
+  display: block;
+}
+
+.fs-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.fs-prev {
+  left: 16px;
+}
+
+.fs-next {
+  right: 16px;
+}
+
+.fs-close {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fs-close:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.fs-counter {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 14px;
 }
 
 /* ---------- Toast ---------- */
