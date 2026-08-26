@@ -118,16 +118,6 @@ function App() {
     }
   }
 
-  // 复制完整 HTML（含样式）到剪贴板
-  const handleCopyHtml = async () => {
-    try {
-      await navigator.clipboard.writeText(buildShareHtml(content))
-      showToast('完整 HTML 已复制到剪贴板')
-    } catch {
-      showToast('复制失败，请手动复制')
-    }
-  }
-
   // 下载独立的 .html 文件，可分享给他人直接打开
   const handleDownloadHtml = () => {
     const blob = new Blob([buildShareHtml(content)], { type: 'text/html;charset=utf-8' })
@@ -173,9 +163,6 @@ function App() {
             <button type="button" className="btn ghost" onClick={handlePreview}>
               预览
             </button>
-            <button type="button" className="btn ghost" onClick={handleCopyHtml}>
-              复制 HTML
-            </button>
             <button type="button" className="btn ghost" onClick={handleDownloadHtml}>
               下载 HTML
             </button>
@@ -189,7 +176,7 @@ function App() {
       <main className="app-main">
         <TipTapEditor initialContent={content} onChange={setContent} />
         <p className="editor-hint">
-          内容自动保存在浏览器本地；「预览 / 复制 HTML / 下载 HTML」可生成带完整样式的分享文件。
+          内容自动保存在浏览器本地；「预览 / 下载 HTML」可生成带完整样式的分享文件。
         </p>
       </main>
 

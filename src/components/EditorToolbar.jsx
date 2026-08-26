@@ -115,21 +115,6 @@ export default function EditorToolbar({ editor, state }) {
         ))}
         {showCustomSize && <option value="custom">{state.fontSize}</option>}
       </select>
-      <input
-        type="number"
-        min="8"
-        max="120"
-        className="tool-size-input"
-        placeholder="自定义"
-        title="自定义字号（回车应用）"
-        defaultValue=""
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            applyFontSize(Number(e.target.value))
-            e.target.value = ''
-          }
-        }}
-      />
 
       <Divider />
 
@@ -180,15 +165,6 @@ export default function EditorToolbar({ editor, state }) {
       <ToolButton active={state.isBold} title="加粗 (Ctrl+B)" onClick={() => editor.chain().focus().toggleBold().run()}>
         <strong>B</strong>
       </ToolButton>
-      <ToolButton active={state.isItalic} title="斜体 (Ctrl+I)" onClick={() => editor.chain().focus().toggleItalic().run()}>
-        <em>I</em>
-      </ToolButton>
-      <ToolButton active={state.isStrike} title="删除线" onClick={() => editor.chain().focus().toggleStrike().run()}>
-        <s>S</s>
-      </ToolButton>
-      <ToolButton active={state.isCode} title="行内代码" onClick={() => editor.chain().focus().toggleCode().run()}>
-        {'</>'}
-      </ToolButton>
 
       <Divider />
 
@@ -208,8 +184,18 @@ export default function EditorToolbar({ editor, state }) {
 
       <Divider />
 
-      <ToolButton title="清除格式" onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>
-        清除格式
+      {/* 撤销 / 重做 */}
+      <ToolButton disabled={!state.canUndo} title="撤销 (Ctrl+Z)" onClick={() => editor.chain().focus().undo().run()}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 14 4 9l5-5" />
+          <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+        </svg>
+      </ToolButton>
+      <ToolButton disabled={!state.canRedo} title="重做 (Ctrl+Y / Ctrl+Shift+Z)" onClick={() => editor.chain().focus().redo().run()}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m15 14 5-5-5-5" />
+          <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+        </svg>
       </ToolButton>
     </div>
   )

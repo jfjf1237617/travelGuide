@@ -34,13 +34,12 @@ export default function TipTapEditor({ initialContent = '', onChange }) {
         fontSize: textStyle?.fontSize || '',
         color: textStyle?.color || '',
         isBold: editor.isActive('bold'),
-        isItalic: editor.isActive('italic'),
-        isStrike: editor.isActive('strike'),
-        isCode: editor.isActive('code'),
         isBulletList: editor.isActive('bulletList'),
         isOrderedList: editor.isActive('orderedList'),
         isBlockquote: editor.isActive('blockquote'),
         isHorizontalRule: editor.isActive('horizontalRule'),
+        canUndo: editor.can().undo(),
+        canRedo: editor.can().redo(),
       }
     },
   })

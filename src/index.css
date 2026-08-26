@@ -192,20 +192,6 @@ body {
   border-color: var(--primary);
 }
 
-.tool-size-input {
-  width: 76px;
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.tool-size-input:focus {
-  outline: none;
-  border-color: var(--primary);
-}
-
 /* ---------- 颜色选择 ---------- */
 .color-picker {
   position: relative;
