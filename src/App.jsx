@@ -88,6 +88,10 @@ const SHARE_STYLES = `
     touch-action: none; user-select: none; -webkit-user-drag: none;
   }
   .lightbox.open { display: flex; }
+  /* 控件置于图片之上：图片的 transform 会创建独立堆叠上下文 */
+  .lightbox .lb-btn,
+  .lightbox .lb-close,
+  .lightbox .lb-count { z-index: 10; }
   .lightbox .lb-stage img {
     max-width: 92vw; max-height: 86vh; object-fit: contain;
     border-radius: 8px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);

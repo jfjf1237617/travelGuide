@@ -20,6 +20,8 @@ export default function ImageGallery({ images, position, onClose, onDelete, onAd
     if (!position) return
     const onPointerDown = (e) => {
       if (fsOverlayRef.current?.contains(e.target)) return
+      // 上传面板区域内的点击不视为「点击外部」，避免添加图片时误关管理窗
+      if (e.target.closest && e.target.closest('.upload-overlay')) return
       if (popupRef.current && !popupRef.current.contains(e.target)) onClose()
     }
     document.addEventListener('pointerdown', onPointerDown, true)
