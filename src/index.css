@@ -118,7 +118,8 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
-  overflow: hidden;
+  /* 不能用 overflow:hidden：会破坏子元素 position:sticky 的视口固定效果 */
+  overflow: visible;
 }
 
 .editor-hint {
@@ -137,6 +138,11 @@ body {
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   background: #fafbfc;
+  /* 固定在顶部导航下方，滚动时始终可见 */
+  position: sticky;
+  top: var(--header-h, 60px);
+  z-index: 50;
+  border-radius: 10px 10px 0 0;
 }
 
 .tool-btn {

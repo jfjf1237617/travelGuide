@@ -379,6 +379,18 @@ function App() {
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
   }, [dirty])
 
+  // 同步顶部导航高度到 CSS 变量，供工具栏 sticky 定位（贴在导航下方）
+  useEffect(() => {
+    const header = document.querySelector('.app-header')
+    if (!header) return
+    const updateHeaderH = () => {
+      document.documentElement.style.setProperty('--header-h', `${header.offsetHeight}px`)
+    }
+    updateHeaderH()
+    window.addEventListener('resize', updateHeaderH)
+    return () => window.removeEventListener('resize', updateHeaderH)
+  }, [])
+
   const showToast = (msg) => {
     setToast(msg)
     clearTimeout(timerRef.current)
