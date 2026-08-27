@@ -5,6 +5,7 @@ const HEADINGS = [
   { label: '标题 1', level: 1 },
   { label: '标题 2', level: 2 },
   { label: '标题 3', level: 3 },
+  { label: '标题 4', level: 4 },
 ]
 
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 48]
@@ -56,7 +57,8 @@ export default function EditorToolbar({ editor, state, onInsertImages, paintMode
     if (!level) {
       editor.chain().focus().setParagraph().run()
     } else {
-      editor.chain().focus().toggleHeading({ level }).run()
+      // 先清除内联字号，标题统一走 CSS 字号，避免残留 font-size 导致同级别标题大小不一
+      editor.chain().focus().unsetFontSize().toggleHeading({ level }).run()
     }
   }
 

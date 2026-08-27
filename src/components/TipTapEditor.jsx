@@ -348,7 +348,8 @@ const TipTapEditor = forwardRef(function TipTapEditor({ initialContent = '', onC
     chain = fmt.italic ? chain.setItalic() : chain.unsetItalic()
     chain = fmt.strike ? chain.setStrike() : chain.unsetStrike()
     chain = fmt.color ? chain.setColor(fmt.color) : chain.unsetColor()
-    chain = fmt.fontSize ? chain.setFontSize(fmt.fontSize) : chain.unsetFontSize()
+    // 目标是标题时字号交给标题 CSS，不再套用内联 fontSize，保证标题大小统一
+    chain = fmt.fontSize && !fmt.heading ? chain.setFontSize(fmt.fontSize) : chain.unsetFontSize()
     chain = fmt.heading ? chain.setHeading({ level: fmt.heading }) : chain.setParagraph()
     chain.run()
     setPaintMode(false)

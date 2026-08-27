@@ -41,6 +41,7 @@ const SHARE_STYLES = `
     border-left: 4px solid #0ea5e9; line-height: 1.4;
   }
   .guide h3 { font-size: 1.2em; margin: 1em 0 0.4em; }
+  .guide h4 { font-size: 1.05em; margin: 1em 0 0.4em; }
   .guide p { margin: 0.6em 0; }
   .guide blockquote {
     margin: 1em 0; padding: 10px 18px;

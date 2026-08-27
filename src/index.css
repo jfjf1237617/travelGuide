@@ -340,6 +340,11 @@ body {
   margin: 0.8em 0 0.5em;
 }
 
+.editor-content .ProseMirror h4 {
+  font-size: 1.05em;
+  margin: 0.8em 0 0.5em;
+}
+
 /* 列表：缩小默认 40px 的浏览器缩进 */
 .editor-content .ProseMirror ul,
 .editor-content .ProseMirror ol {
