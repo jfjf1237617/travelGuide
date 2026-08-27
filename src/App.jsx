@@ -9,7 +9,7 @@ const SHARE_STYLES = `
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    padding: 32px 16px;
+    padding: 0;
     background: #f1f5f9;
     color: #0f172a;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
@@ -20,10 +20,8 @@ const SHARE_STYLES = `
   .guide {
     max-width: 820px;
     margin: 0 auto;
-    padding: 40px 48px;
+    padding: 20px 16px;
     background: #fff;
-    border-radius: 14px;
-    box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
   }
   .guide h1 { font-size: 1.9em; margin: 0.6em 0 0.5em; line-height: 1.3; }
   .guide h2 {
