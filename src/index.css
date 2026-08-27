@@ -166,6 +166,18 @@ body {
   border-color: var(--primary);
 }
 
+/* 格式刷激活态：橙色高亮，提示「已复制格式」 */
+.tool-btn.paint-mode {
+  color: #ea580c;
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.18);
+  animation: paint-pulse 1.2s ease-in-out infinite;
+}
+@keyframes paint-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.18); }
+  50% { box-shadow: 0 0 0 5px rgba(234, 88, 12, 0.3); }
+}
+
 .tool-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -326,6 +338,22 @@ body {
 .editor-content .ProseMirror h3 {
   font-size: 1.25em;
   margin: 0.8em 0 0.5em;
+}
+
+/* 列表：缩小默认 40px 的浏览器缩进 */
+.editor-content .ProseMirror ul,
+.editor-content .ProseMirror ol {
+  padding-left: 1.5em;
+  margin: 0.6em 0;
+}
+
+.editor-content .ProseMirror li {
+  margin: 0.2em 0;
+}
+
+.editor-content .ProseMirror li > ul,
+.editor-content .ProseMirror li > ol {
+  margin: 0.2em 0;
 }
 
 .editor-content .ProseMirror blockquote {

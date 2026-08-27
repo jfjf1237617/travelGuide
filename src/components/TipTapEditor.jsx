@@ -1,5 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useEditor, EditorContent, useEditorState } from '@tiptap/react'
+import { liftListItem } from '@tiptap/pm/schema-list'
+import { Selection, TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import TextStyle from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
@@ -56,12 +58,61 @@ const TipTapEditor = forwardRef(function TipTapEditor({ initialContent = '', onC
     ],
     content: initialContent,
     onUpdate: ({ editor }) => onChange?.(editor.getHTML()),
+    editorProps: {
+      // 优化列表 Backspace 体验：
+      // 1. 空列表项按 Backspace → 仅脱离列表（变空段落），光标停在行首，不删除该项
+      // 2. 刚脱离列表产生的空段落再按 Backspace → 不删除该行（默认行为会删掉整行合并到上一段）
+      handleKeyDown: (view, event) => {
+        if (event.key !== 'Backspace' || event.metaKey || event.ctrlKey || event.altKey) return false
+        const { state, dispatch } = view
+        const { $from } = state.selection
+        if (!state.selection.empty || $from.parentOffset !== 0) return false
+
+        const parent = $from.parent
+        // 空列表项：liftListItem 脱离列表，并显式把光标定位到新段落行首
+        if (parent.type.name === 'listItem' && parent.content.size === 0) {
+          const cursorPos = $from.pos
+          const lifted = liftListItem('listItem')({
+            state,
+            dispatch: (tr) => {
+              const mapped = tr.mapping.map(cursorPos)
+              const $m = tr.doc.resolve(mapped)
+              // 找到光标所在（或最近的）文本块，定位到其内容开头（行首）
+              let startPos = null
+              for (let d = $m.depth; d >= 0; d--) {
+                if ($m.node(d).isTextblock) {
+                  startPos = $m.before(d) + 1
+                  break
+                }
+              }
+              if (startPos == null) {
+                startPos = Selection.near($m, 1).$from.pos
+              }
+              tr.setSelection(TextSelection.create(tr.doc, startPos))
+              dispatch(tr.scrollIntoView())
+            },
+          })
+          if (lifted) return true
+        }
+        // 空段落，且前面紧邻的是列表项（刚脱离列表产生的空行）→ 不再删除
+        if (parent.type.name === 'paragraph' && parent.content.size === 0 && $from.depth >= 1) {
+          const gp = $from.node($from.depth - 1)
+          const idx = $from.index($from.depth - 1)
+          const prev = idx > 0 ? gp.child(idx - 1) : null
+          if (prev && prev.type.name === 'listItem') return true
+        }
+        return false
+      },
+    },
   })
 
   // 图片管理弹窗状态（含节点位置，用于增删图片；mode: view=预览 / manage=管理）
   const [popup, setPopup] = useState(null)
   // 上传面板状态：{ mode: 'insert'（插入到选中文本）| 'add'（追加到当前节点）}
   const [uploadPanel, setUploadPanel] = useState(null)
+  // 格式刷：true 表示已复制格式、待应用到新选区
+  const [paintMode, setPaintMode] = useState(false)
+  const paintRef = useRef(null) // 格式快照
   const wrapRef = useRef(null) // 编辑器外层容器（原生事件监听）
   const longPressRef = useRef(null) // 长按计时器
   const suppressClickRef = useRef(false) // 长按后抑制本次 click
@@ -263,6 +314,68 @@ const TipTapEditor = forwardRef(function TipTapEditor({ initialContent = '', onC
     [editor, onNotify],
   )
 
+  // —— 格式刷 ——
+  // 复制当前选区的格式（字符格式 + 标题级别）
+  const copyFormat = useCallback(() => {
+    if (!editor) return
+    if (editor.state.selection.empty) {
+      onNotify?.('请先选中要复制格式的文本')
+      return
+    }
+    const textStyle = editor.getAttributes('textStyle')
+    paintRef.current = {
+      bold: editor.isActive('bold'),
+      italic: editor.isActive('italic'),
+      strike: editor.isActive('strike'),
+      color: textStyle?.color || null,
+      fontSize: textStyle?.fontSize || null,
+      heading: editor.isActive('heading') ? editor.getAttributes('heading').level : 0,
+    }
+    setPaintMode(true)
+    onNotify?.('已复制格式，请选中目标文本后再次点击格式刷')
+  }, [editor, onNotify])
+
+  // 把已复制的格式应用到当前选区，然后退出格式刷模式
+  const applyFormat = useCallback(() => {
+    if (!editor || !paintRef.current) return
+    if (editor.state.selection.empty) {
+      onNotify?.('请先选中要应用格式的文本')
+      return
+    }
+    const fmt = paintRef.current
+    let chain = editor.chain().focus()
+    chain = fmt.bold ? chain.setBold() : chain.unsetBold()
+    chain = fmt.italic ? chain.setItalic() : chain.unsetItalic()
+    chain = fmt.strike ? chain.setStrike() : chain.unsetStrike()
+    chain = fmt.color ? chain.setColor(fmt.color) : chain.unsetColor()
+    chain = fmt.fontSize ? chain.setFontSize(fmt.fontSize) : chain.unsetFontSize()
+    chain = fmt.heading ? chain.setHeading({ level: fmt.heading }) : chain.setParagraph()
+    chain.run()
+    setPaintMode(false)
+    paintRef.current = null
+    onNotify?.('已应用格式')
+  }, [editor, onNotify])
+
+  // 格式刷按钮：模式中 → 应用；否则 → 复制
+  const handleFormatPaint = useCallback(() => {
+    if (paintMode) applyFormat()
+    else copyFormat()
+  }, [paintMode, applyFormat, copyFormat])
+
+  // Esc 退出格式刷模式
+  useEffect(() => {
+    if (!paintMode) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setPaintMode(false)
+        paintRef.current = null
+        onNotify?.('已退出格式刷')
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [paintMode, onNotify])
+
   // 点击工具栏「插入图片」→ 打开上传面板
   const handlePickImages = () => setUploadPanel({ mode: 'insert' })
 
@@ -312,7 +425,13 @@ const TipTapEditor = forwardRef(function TipTapEditor({ initialContent = '', onC
       onTouchMove={clearLongPress}
       onTouchCancel={clearLongPress}
     >
-      <EditorToolbar editor={editor} state={state} onInsertImages={handlePickImages} />
+      <EditorToolbar
+        editor={editor}
+        state={state}
+        onInsertImages={handlePickImages}
+        paintMode={paintMode}
+        onFormatPaint={handleFormatPaint}
+      />
       <EditorContent editor={editor} className="editor-content" />
       <ImageGallery
         images={popup?.images || []}

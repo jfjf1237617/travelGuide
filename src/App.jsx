@@ -23,6 +23,18 @@ const SHARE_STYLES = `
     padding: 20px 16px;
     background: #fff;
   }
+  .guide ul,
+  .guide ol {
+    padding-left: 1.5em;
+    margin: 0.6em 0;
+  }
+  .guide li {
+    margin: 0.2em 0;
+  }
+  .guide li > ul,
+  .guide li > ol {
+    margin: 0.2em 0;
+  }
   .guide h1 { font-size: 1.9em; margin: 0.6em 0 0.5em; line-height: 1.3; }
   .guide h2 {
     font-size: 1.45em; margin: 1.2em 0 0.5em; padding-left: 12px;
@@ -141,6 +153,8 @@ function transformImagesForShare(content) {
     }
     const link = document.createElement('span')
     link.className = 'guide-images-link'
+    // 保留编辑器识别标记，导入时可还原为图片节点
+    link.setAttribute('data-guide-images', '')
     link.setAttribute('data-images', JSON.stringify(images))
     link.textContent = label
     el.replaceWith(link)
@@ -316,6 +330,11 @@ function parseHtmlContent(htmlText) {
   if (!container) return ''
   // 清理脚本/样式等不适合进入编辑器的内容
   container.querySelectorAll('script, style, link, meta, iframe').forEach((el) => el.remove())
+  // 兼容旧版导出的 HTML：图片标记只有 class/data-images、缺 data-guide-images 时补上，
+  // 否则编辑器无法识别为图片节点，导入后图片会丢失
+  container.querySelectorAll('span.guide-images-link[data-images]').forEach((el) => {
+    if (!el.hasAttribute('data-guide-images')) el.setAttribute('data-guide-images', '')
+  })
   return container.innerHTML.trim()
 }
 
