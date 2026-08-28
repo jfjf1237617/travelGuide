@@ -21,8 +21,12 @@ const fileToDataUrl = (file) =>
     reader.readAsDataURL(file)
   })
 
-// 压缩图片（限制宽度，转 jpeg/png），避免 base64 撑爆 localStorage（约 5MB）
-const compressImage = (dataUrl, maxWidth = 1280) =>
+// 图片压缩参数：宽度与质量越低，base64 体积越小（导出 HTML / localStorage 都受益）
+const IMAGE_MAX_WIDTH = 960 // 原 1280：缩得越小体积越小（适合攻略场景的横图/竖图）
+const IMAGE_QUALITY = 0.72 // 原 0.85：画质与体积的折中
+
+// 压缩图片：限制宽度 → 统一转 WebP（体积最小且支持透明），不支持 WebP 时回退 JPEG/PNG
+const compressImage = (dataUrl, maxWidth = IMAGE_MAX_WIDTH) =>
   new Promise((resolve) => {
     const img = new Image()
     img.onload = () => {
@@ -33,9 +37,19 @@ const compressImage = (dataUrl, maxWidth = 1280) =>
         const canvas = document.createElement('canvas')
         canvas.width = w
         canvas.height = h
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+        const ctx = canvas.getContext('2d')
         const isPng = dataUrl.startsWith('data:image/png')
-        resolve(canvas.toDataURL(isPng ? 'image/png' : 'image/jpeg', 0.85))
+        // 转 JPEG 时透明区域会变黑，先铺白底（WebP/PNG 保留透明不受影响）
+        ctx.fillStyle = '#fff'
+        ctx.fillRect(0, 0, w, h)
+        ctx.drawImage(img, 0, 0, w, h)
+        let out = canvas.toDataURL('image/webp', IMAGE_QUALITY)
+        if (!out.startsWith('data:image/webp')) {
+          // 浏览器不支持 WebP：PNG 保透明，其他转 JPEG
+          out = isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', IMAGE_QUALITY)
+        }
+        // 压缩后反而更大（小图/已高度压缩的图）时保留原图，避免无谓劣化
+        resolve(out.length < dataUrl.length ? out : dataUrl)
       } catch {
         resolve(dataUrl)
       }
@@ -43,6 +57,40 @@ const compressImage = (dataUrl, maxWidth = 1280) =>
     img.onerror = () => resolve(dataUrl)
     img.src = dataUrl
   })
+
+// 复制/剪切前扩展选区：
+// 1. 若选区边界落在 guideImages 节点内部，扩展到覆盖完整节点，防止内联图片被切片切开丢失
+// 2. 若选区触及 guideImages，进一步扩展到所在文本块边界，保证块级样式（标题、列表等）随复制保留
+//    否则 slice 的 openStart>0，粘贴时会嵌入目标段落，标题格式被降级为普通段落
+// 注意：不能通过 $from.node(d) 找内联节点——TextSelection 的深度路径只含块级节点，
+// 必须遍历 doc 所有 guideImages 节点判断位置范围
+const expandSelectionForCopy = (state) => {
+  const { selection } = state
+  if (selection.empty) return null
+  const from = selection.from
+  const to = selection.to
+  let newFrom = from
+  let newTo = to
+  let touchesImage = false
+  state.doc.descendants((node, pos) => {
+    if (node.type.name !== 'guideImages') return
+    const nodeFrom = pos
+    const nodeTo = pos + node.nodeSize
+    if (from > nodeFrom && from < nodeTo) newFrom = nodeFrom
+    if (to > nodeFrom && to < nodeTo) newTo = nodeTo
+    if (from < nodeTo && to > nodeFrom) touchesImage = true
+  })
+  if (touchesImage) {
+    state.doc.descendants((node, pos) => {
+      if (!node.isTextblock) return
+      const blockFrom = pos
+      const blockTo = pos + node.nodeSize
+      if (from > blockFrom && from < blockTo) newFrom = blockFrom
+      if (to > blockFrom && to < blockTo) newTo = blockTo
+    })
+  }
+  return newFrom === from && newTo === to ? null : { from: newFrom, to: newTo }
+}
 
 const TipTapEditor = forwardRef(function TipTapEditor({ initialContent = '', onChange, onNotify }, ref) {
   const editor = useEditor({
@@ -102,6 +150,41 @@ const TipTapEditor = forwardRef(function TipTapEditor({ initialContent = '', onC
           if (prev && prev.type.name === 'listItem') return true
         }
         return false
+      },
+      // 复制/剪切序列化前调用（官方 API，copy 与 cut 默认 handler 都会经过这里）：
+      // 若选区边界落在图片节点内部，把切片扩展为覆盖完整节点，避免图片被切开丢失；
+      // 同时扩展到文本块边界，保留标题等块级样式
+      transformCopied: (slice, view) => {
+        if (!view?.state) return slice
+        const range = expandSelectionForCopy(view.state)
+        if (!range) return slice
+        return view.state.doc.slice(range.from, range.to)
+      },
+      handleDOMEvents: {
+        // 剪切：返回 true 会完全接管（默认 handler 不再执行），所以既要写剪贴板
+        // （用官方 serializeForClipboard，含扩展后的完整图片与块级样式），
+        // 也要接管删除——默认 deleteSelection 按原选区删会把部分选中的图片节点切开留残片
+        cut: (view, event) => {
+          if (!view || !view.state) return false
+          const range = expandSelectionForCopy(view.state)
+          if (!range) return false
+          const { state } = view
+          if (event.clipboardData) {
+            try {
+              const slice = state.doc.slice(range.from, range.to)
+              const { dom, text } = view.serializeForClipboard(slice)
+              event.clipboardData.setData('text/html', dom.innerHTML)
+              event.clipboardData.setData('text/plain', text)
+            } catch {
+              // 剪贴板写入失败也不阻塞删除
+            }
+          }
+          let tr = state.tr
+          tr = tr.setSelection(TextSelection.create(state.doc, range.from, range.to))
+          view.dispatch(tr.deleteSelection().scrollIntoView().setMeta('uiEvent', 'cut'))
+          event.preventDefault()
+          return true
+        },
       },
     },
   })
@@ -380,6 +463,43 @@ const TipTapEditor = forwardRef(function TipTapEditor({ initialContent = '', onC
   // 点击工具栏「插入图片」→ 打开上传面板
   const handlePickImages = () => setUploadPanel({ mode: 'insert' })
 
+  // 一键重压文档中所有已插入的图片（复用插入时的压缩逻辑，新旧图统一瘦身）
+  const recompressAllImages = useCallback(async () => {
+    if (!editor) return
+    const { state } = editor
+    const targets = []
+    state.doc.descendants((node, pos) => {
+      if (node.type.name === 'guideImages' && Array.isArray(node.attrs.images) && node.attrs.images.length) {
+        targets.push({ pos, images: node.attrs.images })
+      }
+    })
+    if (!targets.length) {
+      onNotify?.('没有可重压的图片')
+      return
+    }
+    onNotify?.(`开始重压 ${targets.length} 组图片…`)
+    let savedBytes = 0
+    const results = []
+    for (const t of targets) {
+      const newImages = await Promise.all(
+        t.images.map(async (src) => {
+          const out = await compressImage(src)
+          if (out !== src) savedBytes += src.length - out.length
+          return out
+        }),
+      )
+      results.push({ pos: t.pos, images: newImages })
+    }
+    // 节点大小不变，位置稳定，可一次性批量更新
+    if (results.length) {
+      let tr = state.tr
+      for (const r of results) tr = tr.setNodeMarkup(r.pos, undefined, { images: r.images })
+      editor.view.dispatch(tr)
+    }
+    const savedMb = (savedBytes / 1024 / 1024).toFixed(2)
+    onNotify?.(`已重压 ${targets.length} 组图片，节省 ${savedMb} MB`)
+  }, [editor, onNotify])
+
   // 上传面板确认：根据模式分发到「插入选中文本」或「追加到当前节点」
   const handleUploadConfirm = useCallback(
     (files) => {
@@ -432,6 +552,7 @@ const TipTapEditor = forwardRef(function TipTapEditor({ initialContent = '', onC
         onInsertImages={handlePickImages}
         paintMode={paintMode}
         onFormatPaint={handleFormatPaint}
+        onRecompressImages={recompressAllImages}
       />
       <EditorContent editor={editor} className="editor-content" />
       <ImageGallery

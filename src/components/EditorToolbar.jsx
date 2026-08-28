@@ -37,7 +37,7 @@ function Divider() {
   return <span className="tool-divider" />
 }
 
-export default function EditorToolbar({ editor, state, onInsertImages, paintMode = false, onFormatPaint }) {
+export default function EditorToolbar({ editor, state, onInsertImages, paintMode = false, onFormatPaint, onRecompressImages }) {
   const [showColorPanel, setShowColorPanel] = useState(false)
   const colorPanelRef = useRef(null)
 
@@ -206,6 +206,18 @@ export default function EditorToolbar({ editor, state, onInsertImages, paintMode
           <circle cx="8.5" cy="8.5" r="1.5" />
           <polyline points="21 15 16 10 5 21" />
         </svg>
+      </ToolButton>
+
+      {/* 一键重压所有图片 */}
+      <ToolButton title="一键重压所有图片，减小导出体积" onClick={onRecompressImages} className="recompress-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 12h18" />
+          <path d="m8 12 3-3" />
+          <path d="m8 12 3 3" />
+          <path d="m16 12-3-3" />
+          <path d="m16 12-3 3" />
+        </svg>
+        <span style={{ marginLeft: 4 }}>重压</span>
       </ToolButton>
 
       <Divider />
